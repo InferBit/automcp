@@ -6,6 +6,8 @@ services:
     image: inferbit/automcp-api:latest
     container_name: automcp-api
     restart: unless-stopped
+    ports:
+      - "${API_PORT:-3000}:3000"
     environment:
       PORT: 3000
       SPEC_STORAGE: ${SPEC_STORAGE:-mongo}
@@ -22,7 +24,7 @@ services:
       mongo:
         condition: service_healthy
       typesense:
-        condition: service_healthy
+        condition: service_started
     networks:
       - automcp_net
 
@@ -33,6 +35,8 @@ services:
     image: inferbit/automcp-ui:latest
     container_name: automcp-ui
     restart: unless-stopped
+    ports:
+      - "${UI_PORT:-3001}:3001"
     environment:
       PORT: 3001
       NEXT_PUBLIC_API_URL: ${UI_PUBLIC_API_URL:-http://localhost/api}
@@ -46,9 +50,11 @@ services:
     image: mongo:7
     container_name: automcp-mongo
     restart: unless-stopped
+    # Auth is intentionally disabled by default for the self-hosted local
+    # stack — mongo lives on the internal docker network only and isn't
+    # exposed to the host. Set MONGO_INITDB_ROOT_USERNAME/PASSWORD via
+    # environment if you want to enable it; remember to also update MONGO_URL.
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-automcp}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-changeme}
       MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-automcp}
     volumes:
       - mongo_data:/data/db
@@ -65,17 +71,12 @@ services:
     image: typesense/typesense:0.25.2
     container_name: automcp-typesense
     restart: unless-stopped
-    environment:
-      TYPESENSE_DATA_DIR: /data
-      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-changeme}
-      TYPESENSE_ENABLE_CORS: "true"
+    command: ["--data-dir", "/data", "--api-key=${TYPESENSE_API_KEY:-changeme}", "--enable-cors"]
     volumes:
       - typesense_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8108/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    # No healthcheck — the upstream image has no curl/wget. We rely on
+    # automcp-api's own startup retry against typesense to absorb the
+    # startup race.
     networks:
       - automcp_net
 
