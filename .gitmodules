@@ -1,0 +1,6 @@
+[submodule "submodules/automcp-api"]
+	path = submodules/automcp-api
+	url = https://github.com/InferBit/automcp-api.git
+[submodule "submodules/automcp-ui"]
+	path = submodules/automcp-ui
+	url = https://github.com/InferBit/automcp-ui.git

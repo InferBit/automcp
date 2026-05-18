@@ -1,0 +1,106 @@
+services:
+  api:
+    build:
+      context: ./submodules/automcp-api
+      dockerfile: Dockerfile
+    image: inferbit/automcp-api:latest
+    container_name: automcp-api
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      SPEC_STORAGE: ${SPEC_STORAGE:-mongo}
+      SPEC_STORAGE_PATH: /app/data/specs
+      MONGO_URL: ${MONGO_URL:-mongodb://mongo:27017/automcp}
+      TYPESENSE_HOST: typesense
+      TYPESENSE_PORT: 8108
+      TYPESENSE_PROTOCOL: http
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-changeme}
+      ADMIN_NOTIFICATION_WEBHOOK: ${ADMIN_NOTIFICATION_WEBHOOK:-}
+    volumes:
+      - api_data:/app/data
+    depends_on:
+      mongo:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+    networks:
+      - automcp_net
+
+  ui:
+    build:
+      context: ./submodules/automcp-ui
+      dockerfile: Dockerfile
+    image: inferbit/automcp-ui:latest
+    container_name: automcp-ui
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      NEXT_PUBLIC_API_URL: ${UI_PUBLIC_API_URL:-http://localhost/api}
+      AUTOMCP_API_URL: http://api:3000
+    depends_on:
+      - api
+    networks:
+      - automcp_net
+
+  mongo:
+    image: mongo:7
+    container_name: automcp-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-automcp}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-changeme}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-automcp}
+    volumes:
+      - mongo_data:/data/db
+      - ./mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automcp_net
+
+  typesense:
+    image: typesense/typesense:0.25.2
+    container_name: automcp-typesense
+    restart: unless-stopped
+    environment:
+      TYPESENSE_DATA_DIR: /data
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-changeme}
+      TYPESENSE_ENABLE_CORS: "true"
+    volumes:
+      - typesense_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8108/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automcp_net
+
+  nginx:
+    image: nginx:alpine
+    container_name: automcp-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - api
+      - ui
+    networks:
+      - automcp_net
+
+networks:
+  automcp_net:
+    driver: bridge
+
+volumes:
+  api_data:
+  mongo_data:
+  typesense_data:

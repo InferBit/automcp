@@ -1,0 +1,36 @@
+# Development overrides:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# - Bind-mounts source from submodules for hot reload
+# - Exposes service ports directly (no nginx)
+# - Drops the nginx service
+
+services:
+  api:
+    volumes:
+      - ./submodules/automcp-api:/app:cached
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: ["bun", "run", "--watch", "src/index.ts"]
+
+  ui:
+    volumes:
+      - ./submodules/automcp-ui:/app:cached
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3001:3001"
+    command: ["npm", "run", "dev"]
+
+  mongo:
+    ports:
+      - "27017:27017"
+
+  typesense:
+    ports:
+      - "8108:8108"
+
+  nginx:
+    profiles:
+      - disabled

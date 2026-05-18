@@ -1,0 +1,6 @@
+# Typesense configuration.
+# Mounted into the container if needed; most settings are passed via env vars.
+
+data-dir: /data
+api-port: 8108
+enable-cors: true
